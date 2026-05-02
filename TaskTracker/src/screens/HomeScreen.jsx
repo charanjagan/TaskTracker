@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   SectionList,
@@ -9,6 +9,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TaskCard from '../components/TaskCard';
+import { loadTags } from '../storage/Tags';
 import { deleteTask, loadTasks, updateTask } from '../storage/Tasks';
 import { getTaskDueTimestamp } from '../utils/taskUtils';
 
@@ -16,6 +17,22 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState([]);
+  const [tags, setTags] = useState([]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('ManageTagsScreen')}
+          style={styles.headerTags}
+          accessibilityRole="button"
+          accessibilityLabel="Manage tags"
+        >
+          <Text style={styles.headerTagsText}>Manage tags</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation]);
 
   const bottomPadding = useMemo(
     () => Math.max(insets.bottom, 16),
@@ -47,9 +64,10 @@ export default function HomeScreen() {
     useCallback(() => {
       let active = true;
       (async () => {
-        const list = await loadTasks();
+        const [list, tagList] = await Promise.all([loadTasks(), loadTags()]);
         if (active) {
           setTasks(list);
+          setTags(tagList);
         }
       })();
       return () => {
@@ -59,7 +77,9 @@ export default function HomeScreen() {
   );
 
   const refresh = useCallback(async () => {
-    setTasks(await loadTasks());
+    const [list, tagList] = await Promise.all([loadTasks(), loadTags()]);
+    setTasks(list);
+    setTags(tagList);
   }, []);
 
   const handleDeleteTask = useCallback(
@@ -112,13 +132,14 @@ export default function HomeScreen() {
       return (
         <TaskCard
           task={item}
+          tags={tags}
           onDelete={handleDeleteTask}
           onToggleComplete={handleToggleComplete}
           onPress={openTask}
         />
       );
     },
-    [handleDeleteTask, handleToggleComplete, openTask],
+    [handleDeleteTask, handleToggleComplete, openTask, tags],
   );
 
   const keyExtractor = useCallback((item, index) => {
@@ -157,7 +178,9 @@ export default function HomeScreen() {
             styles.addButton,
             pressed && styles.addButtonPressed,
           ]}
-          onPress={() => navigation.navigate('AddTaskScreen')}
+          onPress={() =>
+            navigation.navigate('AddTaskScreen', { taskId: undefined })
+          }
           accessibilityRole="button"
           accessibilityLabel="Add a new task"
         >
@@ -256,5 +279,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  headerTags: {
+    marginRight: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  headerTagsText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2563EB',
   },
 });

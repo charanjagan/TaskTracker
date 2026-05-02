@@ -1,4 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  cancelTaskNotification,
+  syncTaskNotification,
+} from '../utils/notifications';
 
 const STORAGE_KEY = '@TaskTracker/tasks';
 
@@ -17,6 +21,10 @@ export function normalizeTask(raw) {
     id: String(raw.id),
     title: raw.title != null ? String(raw.title) : '',
     priority: raw.priority != null ? String(raw.priority) : 'medium',
+    tagId:
+      raw.tagId != null && String(raw.tagId) !== ''
+        ? String(raw.tagId)
+        : '',
     category: raw.category != null ? String(raw.category) : 'General',
     dueDate: raw.dueDate != null ? String(raw.dueDate) : '',
     dueTime:
@@ -68,6 +76,7 @@ export async function addTask(task) {
   const newTask = normalizeTask({
     title: '',
     priority: 'medium',
+    tagId: '',
     category: 'General',
     dueDate: '',
     dueTime: '09:00',
@@ -78,6 +87,7 @@ export async function addTask(task) {
   });
   tasks.push(newTask);
   await saveTasks(tasks);
+  await syncTaskNotification(newTask);
   return newTask;
 }
 
@@ -95,6 +105,7 @@ export async function updateTask(id, updates) {
   const merged = normalizeTask({ ...tasks[idx], ...updates });
   tasks[idx] = merged;
   await saveTasks(tasks);
+  await syncTaskNotification(merged);
   return merged;
 }
 
@@ -112,7 +123,29 @@ export async function getTaskById(id) {
  * @returns {Promise<void>}
  */
 export async function deleteTask(id) {
+  await cancelTaskNotification(String(id));
   const tasks = await loadTasks();
   const next = tasks.filter((t) => t?.id !== id);
   await saveTasks(next);
+}
+
+/**
+ * Clear tag reference on tasks when a tag is deleted (keeps category label).
+ * @param {string} removedTagId
+ * @returns {Promise<void>}
+ */
+export async function clearTagIdFromTasks(removedTagId) {
+  const rid = String(removedTagId);
+  const tasks = await loadTasks();
+  let dirty = false;
+  const next = tasks.map((t) => {
+    if (t.tagId === rid) {
+      dirty = true;
+      return normalizeTask({ ...t, tagId: '' });
+    }
+    return t;
+  });
+  if (dirty) {
+    await saveTasks(next);
+  }
 }

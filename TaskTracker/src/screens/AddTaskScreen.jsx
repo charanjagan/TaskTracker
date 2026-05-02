@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,9 +10,11 @@ import {
   View,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { addTask } from '../storage/Tasks';
+import { loadTags } from '../storage/Tags';
+import { addTask, getTaskById, updateTask } from '../storage/Tasks';
+import { hexWithAlpha } from '../utils/colorUtils';
 
 const PRIORITY_OPTIONS = [
   {
@@ -65,27 +67,101 @@ function toTimeString(d) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function parseDueDateToDate(iso) {
+  if (!iso || typeof iso !== 'string') {
+    return new Date();
+  }
+  const parts = iso.split('-').map((x) => parseInt(x, 10));
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+    return new Date();
+  }
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d);
+}
+
+function parseDueTimeToDate(timeStr) {
+  const d = new Date();
+  if (timeStr && /^\d{1,2}:\d{2}$/.test(String(timeStr))) {
+    const [hh, mm] = String(timeStr).split(':').map((x) => parseInt(x, 10));
+    d.setHours(hh, mm, 0, 0);
+  } else {
+    d.setHours(9, 0, 0, 0);
+  }
+  return d;
+}
+
+function defaultDueTime() {
+  const d = new Date();
+  d.setHours(9, 0, 0, 0);
+  return d;
+}
+
 export default function AddTaskScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const rawTaskId = route.params?.taskId;
+  const taskId =
+    rawTaskId != null && String(rawTaskId) !== '' ? String(rawTaskId) : null;
+  const isEdit = taskId != null;
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
-  const [category, setCategory] = useState('');
+  const [tags, setTags] = useState([]);
+  const [selectedTagId, setSelectedTagId] = useState(null);
   const [dueDate, setDueDate] = useState(() => new Date());
-  const [dueTime, setDueTime] = useState(() => {
-    const d = new Date();
-    d.setHours(9, 0, 0, 0);
-    return d;
-  });
+  const [dueTime, setDueTime] = useState(defaultDueTime);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [titleError, setTitleError] = useState('');
+  const [tagError, setTagError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const bottomPadding = useMemo(
     () => Math.max(insets.bottom, 16),
     [insets.bottom],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      async function hydrate() {
+        const list = await loadTags();
+        if (!active) return;
+        setTags(list);
+
+        if (!taskId) {
+          setTitle('');
+          setDescription('');
+          setPriority('medium');
+          setDueDate(new Date());
+          setDueTime(defaultDueTime());
+          setSelectedTagId(list[0]?.id ?? null);
+          setTagError('');
+          return;
+        }
+
+        const t = await getTaskById(String(taskId));
+        if (!active || !t) return;
+
+        setTitle(t.title || '');
+        setDescription(t.description || '');
+        setPriority(t.priority || 'medium');
+        setDueDate(parseDueDateToDate(t.dueDate));
+        setDueTime(parseDueTimeToDate(t.dueTime));
+        setTagError('');
+
+        const byId = t.tagId && list.find((x) => x.id === t.tagId);
+        const byName = list.find((x) => x.name === t.category);
+        setSelectedTagId(byId?.id ?? byName?.id ?? list[0]?.id ?? null);
+      }
+
+      hydrate();
+      return () => {
+        active = false;
+      };
+    }, [taskId]),
   );
 
   const onSubmit = async () => {
@@ -95,16 +171,28 @@ export default function AddTaskScreen() {
       return;
     }
     setTitleError('');
+    if (tags.length > 0 && !selectedTagId) {
+      setTagError('Select a tag.');
+      return;
+    }
+    setTagError('');
     setSubmitting(true);
     try {
-      await addTask({
+      const tag = tags.find((x) => x.id === selectedTagId);
+      const payload = {
         title: trimmed,
         description: description.trim(),
         priority,
-        category: category.trim() || 'General',
+        tagId: tag ? tag.id : '',
+        category: tag ? tag.name : 'General',
         dueDate: toIsoDate(dueDate),
         dueTime: toTimeString(dueTime),
-      });
+      };
+      if (isEdit) {
+        await updateTask(String(taskId), payload);
+      } else {
+        await addTask(payload);
+      }
       navigation.goBack();
     } finally {
       setSubmitting(false);
@@ -187,15 +275,48 @@ export default function AddTaskScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Category</Text>
-          <TextInput
-            style={styles.input}
-            value={category}
-            onChangeText={setCategory}
-            placeholder="e.g. Work, Personal"
-            placeholderTextColor="#A1A1AA"
-            accessibilityLabel="Category"
-          />
+          <Text style={styles.label}>Tag</Text>
+          {tags.length === 0 ? (
+            <Text style={styles.tagHint}>
+              No tags yet. Add some from Manage tags on the home screen.
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tagPillRow}
+            >
+              {tags.map((tag) => {
+                const selected = selectedTagId === tag.id;
+                return (
+                  <Pressable
+                    key={tag.id}
+                    style={({ pressed }) => [
+                      styles.tagPill,
+                      {
+                        backgroundColor: hexWithAlpha(tag.color, 0.22),
+                        borderColor: tag.color,
+                        borderWidth: selected ? 2 : 1,
+                      },
+                      pressed && styles.tagPillPressed,
+                    ]}
+                    onPress={() => {
+                      setSelectedTagId(tag.id);
+                      if (tagError) setTagError('');
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`Tag ${tag.name}`}
+                  >
+                    <Text style={[styles.tagPillText, { color: tag.color }]}>
+                      {tag.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+          {tagError ? <Text style={styles.errorText}>{tagError}</Text> : null}
         </View>
 
         <View style={styles.field}>
@@ -247,10 +368,10 @@ export default function AddTaskScreen() {
           onPress={onSubmit}
           disabled={submitting}
           accessibilityRole="button"
-          accessibilityLabel="Save task"
+          accessibilityLabel={isEdit ? 'Save changes' : 'Save task'}
         >
           <Text style={styles.submitLabel}>
-            {submitting ? 'Saving…' : 'Save task'}
+            {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save task'}
           </Text>
         </Pressable>
       </View>
@@ -357,6 +478,29 @@ const styles = StyleSheet.create({
     opacity: 0.92,
   },
   priorityChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  tagHint: {
+    fontSize: 15,
+    color: '#71717A',
+    lineHeight: 22,
+  },
+  tagPillRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 10,
+    paddingVertical: 2,
+  },
+  tagPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  tagPillPressed: {
+    opacity: 0.9,
+  },
+  tagPillText: {
     fontSize: 14,
     fontWeight: '700',
   },

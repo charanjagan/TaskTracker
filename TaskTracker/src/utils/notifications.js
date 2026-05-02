@@ -43,12 +43,51 @@ function parseDueTimeFromTask(dueTime) {
   return { hour: parseInt(m[1], 10), minute: parseInt(m[2], 10) };
 }
 
+async function canPostNotifications() {
+  const settings = await notifee.getNotificationSettings();
+  return (
+    settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
+    settings.authorizationStatus === AuthorizationStatus.PROVISIONAL
+  );
+}
+
 /**
- * Schedule a local notification on the task's due date (default 9:00 device local time).
- * Uses the task `id` as the Notifee notification id so the same task updates/replaces a pending trigger.
+ * Call once on app launch — prompts for permission and creates the Android channel.
+ */
+export async function requestNotificationPermissionsOnLaunch() {
+  await notifee.requestPermission();
+  await ensureTaskReminderChannel();
+}
+
+/**
+ * Cancel scheduled/displayed notification for a task (same id as trigger notification).
+ * @param {string} taskId
+ */
+export async function cancelTaskNotification(taskId) {
+  if (taskId == null || String(taskId) === '') {
+    return;
+  }
+  await notifee.cancelNotification(String(taskId));
+}
+
+function buildNotificationBody(task) {
+  const desc = task.description != null ? String(task.description).trim() : '';
+  if (desc) {
+    return desc.length > 220 ? `${desc.slice(0, 217)}…` : desc;
+  }
+  const timeBits = [task.dueDate, task.dueTime].filter(Boolean).join(' · ');
+  const extra = [task.category, timeBits ? `Due ${timeBits}` : '']
+    .filter(Boolean)
+    .join(' · ');
+  return extra || 'Task reminder';
+}
+
+/**
+ * Schedule (or replace) a trigger notification at the task due date/time.
+ * Does not call requestPermission — use {@link requestNotificationPermissionsOnLaunch} at startup.
  *
- * @param {{ id: string; title: string; dueDate: string; dueTime?: string; category?: string }} task
- * @param {{ hour?: number; minute?: number }} [options] — override time on the due date (defaults to task.dueTime or 9:00)
+ * @param {{ id: string; title: string; dueDate: string; dueTime?: string; description?: string; category?: string }} task
+ * @param {{ hour?: number; minute?: number }} [options]
  * @returns {Promise<{ scheduled: boolean; reason?: string; triggerAt?: number }>}
  */
 export async function scheduleTaskDueReminder(task, options = {}) {
@@ -62,19 +101,18 @@ export async function scheduleTaskDueReminder(task, options = {}) {
     );
   }
 
+  if (!(await canPostNotifications())) {
+    return { scheduled: false, reason: 'permission_denied' };
+  }
+
+  await ensureTaskReminderChannel();
+
   const parsed = parseDueDateLocal(task.dueDate);
   if (!parsed) {
     throw new Error(
       'scheduleTaskDueReminder: dueDate must be a YYYY-MM-DD date string',
     );
   }
-
-  const { authorizationStatus } = await notifee.requestPermission();
-  if (authorizationStatus === AuthorizationStatus.DENIED) {
-    return { scheduled: false, reason: 'permission_denied' };
-  }
-
-  await ensureTaskReminderChannel();
 
   const triggerAt = new Date(
     parsed.year,
@@ -98,16 +136,14 @@ export async function scheduleTaskDueReminder(task, options = {}) {
     },
   };
 
-  const subtitleParts = [`Due ${task.dueDate}`];
-  if (task.category) {
-    subtitleParts.push(task.category);
-  }
+  const title = String(task.title).trim() || 'Task';
+  const body = buildNotificationBody(task);
 
   await notifee.createTriggerNotification(
     {
       id: String(task.id),
-      title: 'Task reminder',
-      body: `${task.title} — ${subtitleParts.join(' · ')}`,
+      title,
+      body,
       android: {
         channelId: TASK_REMINDER_CHANNEL_ID,
         pressAction: {
@@ -122,4 +158,19 @@ export async function scheduleTaskDueReminder(task, options = {}) {
   );
 
   return { scheduled: true, triggerAt };
+}
+
+/**
+ * Cancels notification when completed; otherwise schedules/updates for pending tasks.
+ * @param {Record<string, unknown>} task normalized task
+ */
+export async function syncTaskNotification(task) {
+  if (!task?.id) {
+    return;
+  }
+  if (task.completed) {
+    await cancelTaskNotification(String(task.id));
+    return;
+  }
+  await scheduleTaskDueReminder(task);
 }

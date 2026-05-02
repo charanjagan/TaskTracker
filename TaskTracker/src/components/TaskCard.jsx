@@ -1,6 +1,8 @@
 import React, { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import { resolveTagForTask } from '../storage/Tags';
+import { hexWithAlpha } from '../utils/colorUtils';
 import { formatDueDateTimeLine, isTaskOverdue } from '../utils/taskUtils';
 
 const PRIORITY_THEME = {
@@ -30,6 +32,7 @@ const PRIORITY_THEME = {
  *   onDelete?: (id: string) => void;
  *   onToggleComplete?: (id: string) => void;
  *   onPress?: (task: Record<string, unknown>) => void;
+ *   tags?: Array<{ id: string; name: string; color: string }>;
  * }} props
  */
 export default function TaskCard({
@@ -37,6 +40,7 @@ export default function TaskCard({
   onDelete,
   onToggleComplete,
   onPress,
+  tags = [],
 }) {
   const swipeRef = useRef(null);
   const priority = PRIORITY_THEME[task.priority] ?? PRIORITY_THEME.medium;
@@ -44,6 +48,9 @@ export default function TaskCard({
   const completed = Boolean(task.completed);
 
   const dueLine = formatDueDateTimeLine(task.dueDate, task.dueTime);
+  const tag = resolveTagForTask(task, tags);
+  const tagLabel = tag?.name ?? task.category;
+  const tagColor = tag?.color ?? '#A1A1AA';
 
   const renderRightActions = useCallback(
     () => (
@@ -121,8 +128,18 @@ export default function TaskCard({
         </View>
       </View>
       <View style={styles.metaRow}>
-        <View style={styles.categoryPill}>
-          <Text style={styles.categoryText}>{task.category}</Text>
+        <View
+          style={[
+            styles.categoryPill,
+            {
+              backgroundColor: hexWithAlpha(tagColor, 0.22),
+              borderColor: tagColor,
+            },
+          ]}
+        >
+          <Text style={[styles.categoryText, { color: tagColor }]}>
+            {tagLabel}
+          </Text>
         </View>
         <View style={styles.dueBlock}>
           <Text style={styles.dueLabel}>Due</Text>
@@ -271,18 +288,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   categoryPill: {
-    backgroundColor: '#EEF2FF',
     paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
     flexShrink: 1,
   },
   categoryText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4338CA',
   },
   dueBlock: {
     flexDirection: 'row',

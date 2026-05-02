@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +8,9 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { loadTags, resolveTagForTask } from '../storage/Tags';
 import { getTaskById, updateTask } from '../storage/Tasks';
+import { hexWithAlpha } from '../utils/colorUtils';
 import { formatDueDateTimeLine } from '../utils/taskUtils';
 
 const PRIORITY_THEME = {
@@ -37,6 +39,7 @@ export default function TaskDetailScreen() {
   const route = useRoute();
   const taskId = route.params?.taskId;
   const [task, setTask] = useState(null);
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
 
@@ -55,8 +58,30 @@ export default function TaskDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
+      loadTags().then(setTags);
     }, [load]),
   );
+
+  useLayoutEffect(() => {
+    if (!task) {
+      navigation.setOptions({ headerRight: undefined });
+      return;
+    }
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() =>
+            navigation.navigate('AddTaskScreen', { taskId: task.id })
+          }
+          style={styles.headerEdit}
+          accessibilityRole="button"
+          accessibilityLabel="Edit task"
+        >
+          <Text style={styles.headerEditText}>Edit</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, task]);
 
   const onToggleCompleted = async () => {
     if (!task) return;
@@ -94,6 +119,9 @@ export default function TaskDetailScreen() {
 
   const priority = PRIORITY_THEME[task.priority] ?? PRIORITY_THEME.medium;
   const dueLine = formatDueDateTimeLine(task.dueDate, task.dueTime);
+  const tag = resolveTagForTask(task, tags);
+  const tagLabel = tag?.name ?? task.category;
+  const tagColor = tag?.color ?? '#A1A1AA';
 
   return (
     <ScrollView
@@ -133,9 +161,19 @@ export default function TaskDetailScreen() {
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.label}>Category</Text>
-        <View style={styles.categoryPill}>
-          <Text style={styles.categoryText}>{task.category}</Text>
+        <Text style={styles.label}>Tag</Text>
+        <View
+          style={[
+            styles.categoryPill,
+            {
+              backgroundColor: hexWithAlpha(tagColor, 0.22),
+              borderColor: tagColor,
+            },
+          ]}
+        >
+          <Text style={[styles.categoryText, { color: tagColor }]}>
+            {tagLabel}
+          </Text>
         </View>
       </View>
 
@@ -255,17 +293,14 @@ const styles = StyleSheet.create({
   },
   categoryPill: {
     alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
   },
   categoryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4338CA',
   },
   statusPill: {
     alignSelf: 'flex-start',
@@ -309,5 +344,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  headerEdit: {
+    marginRight: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  headerEditText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
   },
 });
