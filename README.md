@@ -31,7 +31,7 @@
 │  $ cat status.txt                                         │
 │                                                           │
 │  ► Core functionality: works (mostly)                     │
-│  ► UI polish: [ ██████████ ] dark mode included           │
+│  ► UI polish: [ ██         ] dark mode included           │
 │  ► Features: more than expected                           │
 │  ► Bug count: unknown. probably fine.                     │
 │                                                           │
