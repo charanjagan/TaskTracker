@@ -12,8 +12,10 @@ import AddTaskScreen from './src/screens/AddTaskScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ManageTagsScreen from './src/screens/ManageTagsScreen';
 import SplashScreen from './src/screens/SplashScreen';
+import StatisticsScreen from './src/screens/StatisticsScreen';
 import TaskDetailScreen from './src/screens/TaskDetailScreen';
 import { loadTasks } from './src/storage/Tasks';
+import { getTheme } from './src/utils/theme';
 import {
   requestNotificationPermissionsOnLaunch,
   syncTaskNotification,
@@ -23,6 +25,7 @@ const Stack = createStackNavigator();
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
+  const theme = getTheme(isDarkMode);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,8 +54,33 @@ function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-        <NavigationContainer>
-          <Stack.Navigator initialRouteName="Splash">
+        <NavigationContainer
+          theme={{
+            dark: isDarkMode,
+            colors: {
+              primary: theme.primary,
+              background: theme.bg,
+              card: theme.card,
+              text: theme.text,
+              border: theme.border,
+              notification: theme.primary,
+            },
+            fonts: {
+              regular: { fontFamily: 'System', fontWeight: '400' },
+              medium: { fontFamily: 'System', fontWeight: '500' },
+              bold: { fontFamily: 'System', fontWeight: '700' },
+              heavy: { fontFamily: 'System', fontWeight: '800' },
+            },
+          }}
+        >
+          <Stack.Navigator
+            initialRouteName="Splash"
+            screenOptions={{
+              headerStyle: { backgroundColor: theme.card },
+              headerTitleStyle: { color: theme.text, fontWeight: '700' },
+              headerTintColor: theme.headerTint,
+            }}
+          >
             <Stack.Screen
               name="Splash"
               component={SplashScreen}
@@ -84,6 +112,11 @@ function App() {
               name="ManageTagsScreen"
               component={ManageTagsScreen}
               options={{ title: 'Manage tags' }}
+            />
+            <Stack.Screen
+              name="StatisticsScreen"
+              component={StatisticsScreen}
+              options={{ title: 'Statistics' }}
             />
           </Stack.Navigator>
         </NavigationContainer>

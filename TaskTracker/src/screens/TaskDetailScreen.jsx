@@ -5,13 +5,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { loadTags, resolveTagForTask } from '../storage/Tags';
-import { getTaskById, updateTask } from '../storage/Tasks';
+import { completeTask, getTaskById, updateTask } from '../storage/Tasks';
 import { hexWithAlpha } from '../utils/colorUtils';
 import { formatDueDateTimeLine } from '../utils/taskUtils';
+import { getTheme, typography } from '../utils/theme';
 
 const PRIORITY_THEME = {
   high: {
@@ -35,6 +37,8 @@ const PRIORITY_THEME = {
 };
 
 export default function TaskDetailScreen() {
+  const isDarkMode = useColorScheme() === 'dark';
+  const theme = getTheme(isDarkMode);
   const navigation = useNavigation();
   const route = useRoute();
   const taskId = route.params?.taskId;
@@ -77,17 +81,21 @@ export default function TaskDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel="Edit task"
         >
-          <Text style={styles.headerEditText}>Edit</Text>
+          <Text style={[styles.headerEditText, { color: theme.headerTint }]}>Edit</Text>
         </Pressable>
       ),
     });
-  }, [navigation, task]);
+  }, [navigation, task, theme.headerTint]);
 
   const onToggleCompleted = async () => {
     if (!task) return;
     setToggling(true);
     try {
-      await updateTask(task.id, { completed: !task.completed });
+      if (task.completed) {
+        await updateTask(task.id, { completed: false });
+      } else {
+        await completeTask(task.id);
+      }
       await load();
     } finally {
       setToggling(false);
@@ -97,7 +105,7 @@ export default function TaskDetailScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -105,13 +113,13 @@ export default function TaskDetailScreen() {
   if (!task) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.missingText}>Task not found.</Text>
+        <Text style={[styles.missingText, { color: theme.textMuted }]}>Task not found.</Text>
         <Pressable
           style={styles.backLink}
           onPress={() => navigation.goBack()}
           accessibilityRole="button"
         >
-          <Text style={styles.backLinkText}>Go back</Text>
+          <Text style={[styles.backLinkText, { color: theme.primary }]}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -125,18 +133,18 @@ export default function TaskDetailScreen() {
 
   return (
     <ScrollView
-      style={styles.screen}
+      style={[styles.screen, { backgroundColor: theme.bg }]}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.block}>
-        <Text style={styles.label}>Title</Text>
-        <Text style={styles.title}>{task.title}</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Title</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{task.title}</Text>
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.label}>Description</Text>
-        <Text style={styles.description}>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Description</Text>
+        <Text style={[styles.description, { color: theme.textMuted }]}>
           {task.description?.trim()
             ? task.description
             : 'No description added.'}
@@ -144,7 +152,7 @@ export default function TaskDetailScreen() {
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.label}>Priority</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Priority</Text>
         <View
           style={[
             styles.priorityBadge,
@@ -161,7 +169,7 @@ export default function TaskDetailScreen() {
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.label}>Tag</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Tag</Text>
         <View
           style={[
             styles.categoryPill,
@@ -178,12 +186,12 @@ export default function TaskDetailScreen() {
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.label}>Due date & time</Text>
-        <Text style={styles.value}>{dueLine}</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Due date & time</Text>
+        <Text style={[styles.value, { color: theme.text }]}>{dueLine}</Text>
       </View>
 
       <View style={styles.block}>
-        <Text style={styles.label}>Status</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Status</Text>
         <View
           style={[
             styles.statusPill,
@@ -204,6 +212,7 @@ export default function TaskDetailScreen() {
       <Pressable
         style={({ pressed }) => [
           styles.toggleButton,
+          { backgroundColor: theme.primary },
           pressed && styles.toggleButtonPressed,
           toggling && styles.toggleButtonDisabled,
         ]}
@@ -214,7 +223,7 @@ export default function TaskDetailScreen() {
           task.completed ? 'Mark task as pending' : 'Mark task as completed'
         }
       >
-        <Text style={styles.toggleButtonLabel}>
+        <Text style={[styles.toggleButtonLabel, { color: theme.onPrimary }]}>
           {task.completed ? 'Mark as pending' : 'Mark as completed'}
         </Text>
       </Pressable>
@@ -225,7 +234,6 @@ export default function TaskDetailScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F4F4F5',
   },
   content: {
     paddingHorizontal: 16,
@@ -234,7 +242,6 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    backgroundColor: '#F4F4F5',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -257,28 +264,18 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#52525B',
+    ...typography.caption,
     marginBottom: 8,
     letterSpacing: 0.2,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#18181B',
-    lineHeight: 28,
-    letterSpacing: -0.3,
+    ...typography.h1,
   },
   description: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#3F3F46',
+    ...typography.body,
   },
   value: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#18181B',
+    ...typography.bodyStrong,
   },
   priorityBadge: {
     alignSelf: 'flex-start',
@@ -329,7 +326,6 @@ const styles = StyleSheet.create({
   },
   toggleButton: {
     marginTop: 8,
-    backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -341,9 +337,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   toggleButtonLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.button,
   },
   headerEdit: {
     marginRight: 4,
@@ -351,8 +345,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   headerEditText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
+    ...typography.button,
   },
 });

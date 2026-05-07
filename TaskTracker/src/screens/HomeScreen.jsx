@@ -1,49 +1,91 @@
 import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import {
   Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TaskCard from '../components/TaskCard';
 import { loadTags } from '../storage/Tags';
-import { deleteTask, loadTasks, updateTask } from '../storage/Tasks';
+import { completeTask, deleteTask, loadTasks } from '../storage/Tasks';
 import { getTaskDueTimestamp } from '../utils/taskUtils';
+import { getTheme, typography } from '../utils/theme';
 
 export default function HomeScreen() {
+  const isDarkMode = useColorScheme() === 'dark';
+  const theme = getTheme(isDarkMode);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState([]);
   const [tags, setTags] = useState([]);
+  const [query, setQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('StatisticsScreen')}
+          style={styles.headerTags}
+          accessibilityRole="button"
+          accessibilityLabel="Open statistics"
+        >
+          <Text style={[styles.headerTagsText, { color: theme.headerTint }]}>
+            Stats
+          </Text>
+        </Pressable>
+      ),
+      headerLeft: () => (
         <Pressable
           onPress={() => navigation.navigate('ManageTagsScreen')}
           style={styles.headerTags}
           accessibilityRole="button"
           accessibilityLabel="Manage tags"
         >
-          <Text style={styles.headerTagsText}>Manage tags</Text>
+          <Text style={[styles.headerTagsText, { color: theme.headerTint }]}>
+            Tags
+          </Text>
         </Pressable>
       ),
     });
-  }, [navigation]);
+  }, [navigation, theme.headerTint]);
 
   const bottomPadding = useMemo(
     () => Math.max(insets.bottom, 16),
     [insets.bottom],
   );
 
+  const filteredTasks = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return tasks.filter((task) => {
+      const matchesTitle = q ? task.title.toLowerCase().includes(q) : true;
+      if (!matchesTitle) {
+        return false;
+      }
+      if (activeFilter === 'all') {
+        return true;
+      }
+      if (activeFilter.startsWith('priority:')) {
+        return task.priority === activeFilter.replace('priority:', '');
+      }
+      if (activeFilter.startsWith('tag:')) {
+        return task.tagId === activeFilter.replace('tag:', '');
+      }
+      return true;
+    });
+  }, [activeFilter, query, tasks]);
+
   const sections = useMemo(() => {
-    const pending = tasks
+    const pending = filteredTasks
       .filter((t) => !t.completed)
       .sort((a, b) => getTaskDueTimestamp(a) - getTaskDueTimestamp(b));
-    const completed = tasks
+    const completed = filteredTasks
       .filter((t) => t.completed)
       .sort((a, b) => getTaskDueTimestamp(b) - getTaskDueTimestamp(a));
     return [
@@ -58,7 +100,18 @@ export default function HomeScreen() {
         count: completed.length,
       },
     ];
-  }, [tasks]);
+  }, [filteredTasks]);
+
+  const filterPills = useMemo(
+    () => [
+      { key: 'all', label: 'All' },
+      { key: 'priority:high', label: 'High' },
+      { key: 'priority:medium', label: 'Medium' },
+      { key: 'priority:low', label: 'Low' },
+      ...tags.map((tag) => ({ key: `tag:${tag.id}`, label: tag.name })),
+    ],
+    [tags],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -92,7 +145,7 @@ export default function HomeScreen() {
 
   const handleToggleComplete = useCallback(
     async (id) => {
-      await updateTask(id, { completed: true });
+      await completeTask(id);
       await refresh();
     },
     [refresh],
@@ -108,13 +161,17 @@ export default function HomeScreen() {
   const renderSectionHeader = useCallback(
     ({ section }) => (
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{section.title}</Text>
-        <View style={styles.countBadge}>
-          <Text style={styles.countBadgeText}>{section.count}</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          {section.title}
+        </Text>
+        <View style={[styles.countBadge, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.countBadgeText, { color: theme.textMuted }]}>
+            {section.count}
+          </Text>
         </View>
       </View>
     ),
-    [],
+    [theme],
   );
 
   const renderItem = useCallback(
@@ -122,7 +179,9 @@ export default function HomeScreen() {
       if (item == null && section.title === 'Pending') {
         return (
           <View style={styles.caughtUpWrap}>
-            <Text style={styles.caughtUpText}>All caught up! 🎉</Text>
+            <Text style={[styles.caughtUpText, { color: theme.textMuted }]}>
+              All caught up! 🎉
+            </Text>
           </View>
         );
       }
@@ -139,7 +198,7 @@ export default function HomeScreen() {
         />
       );
     },
-    [handleDeleteTask, handleToggleComplete, openTask, tags],
+    [handleDeleteTask, handleToggleComplete, openTask, tags, theme.textMuted],
   );
 
   const keyExtractor = useCallback((item, index) => {
@@ -150,16 +209,67 @@ export default function HomeScreen() {
   }, []);
 
   const listEmpty =
-    tasks.length === 0 ? (
+    filteredTasks.length === 0 ? (
       <View style={styles.globalEmpty}>
-        <Text style={styles.globalEmptyText}>No tasks yet.</Text>
-        <Text style={styles.globalEmptyHint}>Add one to get started.</Text>
+        <Text style={[styles.globalEmptyText, { color: theme.textMuted }]}>
+          No matching tasks.
+        </Text>
+        <Text style={[styles.globalEmptyHint, { color: theme.textSubtle }]}>
+          Try a different search or filter.
+        </Text>
       </View>
     ) : null;
 
   return (
-    <View style={styles.screen}>
-      {tasks.length === 0 ? (
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <View style={styles.searchWrap}>
+        <TextInput
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search tasks"
+          placeholderTextColor={theme.textSubtle}
+        />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillRow}
+        >
+          {filterPills.map((pill) => {
+            const selected = activeFilter === pill.key;
+            return (
+              <Pressable
+                key={pill.key}
+                onPress={() => setActiveFilter(pill.key)}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor: selected ? theme.primary : theme.card,
+                    borderColor: selected ? theme.primary : theme.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    { color: selected ? theme.onPrimary : theme.textMuted },
+                  ]}
+                >
+                  {pill.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+      {filteredTasks.length === 0 ? (
         <View style={styles.emptyScreen}>{listEmpty}</View>
       ) : (
         <SectionList
@@ -172,10 +282,20 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-      <View style={[styles.footer, { paddingBottom: bottomPadding }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: bottomPadding,
+            backgroundColor: theme.bg,
+            borderTopColor: theme.border,
+          },
+        ]}
+      >
         <Pressable
           style={({ pressed }) => [
             styles.addButton,
+            { backgroundColor: theme.primary },
             pressed && styles.addButtonPressed,
           ]}
           onPress={() =>
@@ -184,7 +304,9 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel="Add a new task"
         >
-          <Text style={styles.addButtonLabel}>Add task</Text>
+          <Text style={[styles.addButtonLabel, { color: theme.onPrimary }]}>
+            Add task
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -194,7 +316,31 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F4F4F5',
+  },
+  searchWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 10,
+  },
+  searchInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...typography.body,
+  },
+  pillRow: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pillText: {
+    ...typography.caption,
   },
   emptyScreen: {
     flex: 1,
@@ -205,14 +351,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   globalEmptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#3F3F46',
+    ...typography.h2,
     marginBottom: 8,
   },
   globalEmptyHint: {
-    fontSize: 15,
-    color: '#71717A',
+    ...typography.body,
     textAlign: 'center',
   },
   listContent: {
@@ -228,9 +371,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#18181B',
+    ...typography.caption,
     letterSpacing: 0.2,
   },
   countBadge: {
@@ -243,9 +384,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   countBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#52525B',
+    ...typography.caption,
   },
   caughtUpWrap: {
     paddingVertical: 28,
@@ -253,20 +392,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   caughtUpText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#52525B',
+    ...typography.bodyStrong,
     textAlign: 'center',
   },
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: '#F4F4F5',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E4E4E7',
   },
   addButton: {
-    backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -276,9 +410,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   addButtonLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.button,
   },
   headerTags: {
     marginRight: 4,
@@ -286,8 +418,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   headerTagsText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2563EB',
+    ...typography.bodyStrong,
   },
 });

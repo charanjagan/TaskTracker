@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,8 +19,11 @@ import {
 } from '../storage/Tags';
 import { clearTagIdFromTasks } from '../storage/Tasks';
 import { hexWithAlpha } from '../utils/colorUtils';
+import { getTheme, typography } from '../utils/theme';
 
 export default function ManageTagsScreen() {
+  const isDarkMode = useColorScheme() === 'dark';
+  const theme = getTheme(isDarkMode);
   const insets = useSafeAreaInsets();
   const [tags, setTags] = useState([]);
   const [newName, setNewName] = useState('');
@@ -113,7 +117,7 @@ export default function ManageTagsScreen() {
   );
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -122,21 +126,28 @@ export default function ManageTagsScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionTitle}>New tag</Text>
-        <Text style={styles.label}>Name</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>New tag</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Name</Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
           value={newName}
           onChangeText={(v) => {
             setNewName(v);
             if (addError) setAddError('');
           }}
           placeholder="e.g. Errands"
-          placeholderTextColor="#A1A1AA"
+          placeholderTextColor={theme.textSubtle}
           accessibilityLabel="New tag name"
         />
 
-        <Text style={[styles.label, styles.labelSpaced]}>Color</Text>
+        <Text style={[styles.label, styles.labelSpaced, { color: theme.textMuted }]}>Color</Text>
         <View style={styles.colorGrid}>
           {TAG_COLOR_PRESETS.map((c) => {
             const selected = newColor === c && !customHex.trim();
@@ -161,13 +172,22 @@ export default function ManageTagsScreen() {
           })}
         </View>
 
-        <Text style={[styles.label, styles.labelSpaced]}>Custom hex (optional)</Text>
+        <Text style={[styles.label, styles.labelSpaced, { color: theme.textMuted }]}>
+          Custom hex (optional)
+        </Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
           value={customHex}
           onChangeText={(v) => setCustomHex(v)}
           placeholder="#7C3AED"
-          placeholderTextColor="#A1A1AA"
+          placeholderTextColor={theme.textSubtle}
           autoCapitalize="none"
           accessibilityLabel="Custom color hex"
         />
@@ -177,18 +197,23 @@ export default function ManageTagsScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.addButton,
+            { backgroundColor: theme.primary },
             pressed && styles.addButtonPressed,
           ]}
           onPress={onAddTag}
           accessibilityRole="button"
           accessibilityLabel="Add tag"
         >
-          <Text style={styles.addButtonLabel}>Add tag</Text>
+          <Text style={[styles.addButtonLabel, { color: theme.onPrimary }]}>Add tag</Text>
         </Pressable>
 
-        <Text style={[styles.sectionTitle, styles.listSection]}>Your tags</Text>
+        <Text style={[styles.sectionTitle, styles.listSection, { color: theme.text }]}>
+          Your tags
+        </Text>
         {tags.length === 0 ? (
-          <Text style={styles.emptyList}>No tags yet. Add one above.</Text>
+          <Text style={[styles.emptyList, { color: theme.textSubtle }]}>
+            No tags yet. Add one above.
+          </Text>
         ) : (
           tags.map((item) => (
             <Fragment key={item.id}>{renderTag({ item })}</Fragment>
@@ -202,7 +227,6 @@ export default function ManageTagsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F4F4F5',
   },
   scroll: {
     flex: 1,
@@ -212,9 +236,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#18181B',
+    ...typography.bodyStrong,
     marginBottom: 12,
     letterSpacing: 0.2,
   },
@@ -222,23 +244,19 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#52525B',
+    ...typography.caption,
     marginBottom: 8,
   },
   labelSpaced: {
     marginTop: 16,
   },
   input: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#E4E4E7',
     paddingHorizontal: 14,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#18181B',
+    ...typography.body,
   },
   colorGrid: {
     flexDirection: 'row',
@@ -267,7 +285,6 @@ const styles = StyleSheet.create({
   },
   addButton: {
     marginTop: 18,
-    backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -276,9 +293,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   addButtonLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.button,
   },
   emptyList: {
     fontSize: 15,

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { loadTags } from '../storage/Tags';
 import { addTask, getTaskById, updateTask } from '../storage/Tasks';
 import { hexWithAlpha } from '../utils/colorUtils';
+import { getTheme, typography } from '../utils/theme';
 
 const PRIORITY_OPTIONS = [
   {
@@ -38,6 +40,12 @@ const PRIORITY_OPTIONS = [
     color: '#166534',
     borderColor: '#BBF7D0',
   },
+];
+
+const RECURRENCE_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
 ];
 
 function toIsoDate(d) {
@@ -97,6 +105,8 @@ function defaultDueTime() {
 }
 
 export default function AddTaskScreen() {
+  const isDarkMode = useColorScheme() === 'dark';
+  const theme = getTheme(isDarkMode);
   const navigation = useNavigation();
   const route = useRoute();
   const rawTaskId = route.params?.taskId;
@@ -113,6 +123,7 @@ export default function AddTaskScreen() {
   const [dueTime, setDueTime] = useState(defaultDueTime);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [recurrence, setRecurrence] = useState('none');
   const [titleError, setTitleError] = useState('');
   const [tagError, setTagError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -137,6 +148,7 @@ export default function AddTaskScreen() {
           setPriority('medium');
           setDueDate(new Date());
           setDueTime(defaultDueTime());
+          setRecurrence('none');
           setSelectedTagId(list[0]?.id ?? null);
           setTagError('');
           return;
@@ -150,6 +162,7 @@ export default function AddTaskScreen() {
         setPriority(t.priority || 'medium');
         setDueDate(parseDueDateToDate(t.dueDate));
         setDueTime(parseDueTimeToDate(t.dueTime));
+        setRecurrence(t.recurrence || 'none');
         setTagError('');
 
         const byId = t.tagId && list.find((x) => x.id === t.tagId);
@@ -187,6 +200,7 @@ export default function AddTaskScreen() {
         category: tag ? tag.name : 'General',
         dueDate: toIsoDate(dueDate),
         dueTime: toTimeString(dueTime),
+        recurrence,
       };
       if (isEdit) {
         await updateTask(String(taskId), payload);
@@ -201,7 +215,7 @@ export default function AddTaskScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={[styles.screen, { backgroundColor: theme.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
@@ -212,16 +226,24 @@ export default function AddTaskScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.field}>
-          <Text style={styles.label}>Title</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Title</Text>
           <TextInput
-            style={[styles.input, titleError ? styles.inputError : null]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                color: theme.text,
+              },
+              titleError ? styles.inputError : null,
+            ]}
             value={title}
             onChangeText={(v) => {
               setTitle(v);
               if (titleError) setTitleError('');
             }}
             placeholder="What do you need to do?"
-            placeholderTextColor="#A1A1AA"
+            placeholderTextColor={theme.textSubtle}
             accessibilityLabel="Task title"
           />
           {titleError ? (
@@ -230,13 +252,21 @@ export default function AddTaskScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Description</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Description</Text>
           <TextInput
-            style={[styles.input, styles.inputMultiline]}
+            style={[
+              styles.input,
+              styles.inputMultiline,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                color: theme.text,
+              },
+            ]}
             value={description}
             onChangeText={setDescription}
             placeholder="Optional notes…"
-            placeholderTextColor="#A1A1AA"
+            placeholderTextColor={theme.textSubtle}
             multiline
             textAlignVertical="top"
             accessibilityLabel="Task description"
@@ -244,7 +274,7 @@ export default function AddTaskScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Priority</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Priority</Text>
           <View style={styles.priorityRow}>
             {PRIORITY_OPTIONS.map((opt) => {
               const selected = priority === opt.value;
@@ -275,9 +305,9 @@ export default function AddTaskScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Tag</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Tag</Text>
           {tags.length === 0 ? (
-            <Text style={styles.tagHint}>
+            <Text style={[styles.tagHint, { color: theme.textSubtle }]}>
               No tags yet. Add some from Manage tags on the home screen.
             </Text>
           ) : (
@@ -320,11 +350,14 @@ export default function AddTaskScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Due date & time</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>
+            Due date & time
+          </Text>
           <View style={styles.dateTimeRow}>
             <Pressable
               style={({ pressed }) => [
                 styles.dateButton,
+                { backgroundColor: theme.card, borderColor: theme.border },
                 styles.dateTimeHalf,
                 pressed && styles.dateButtonPressed,
               ]}
@@ -332,15 +365,20 @@ export default function AddTaskScreen() {
               accessibilityRole="button"
               accessibilityLabel="Choose due date"
             >
-              <Text style={styles.dateTimeLabel}>Date</Text>
-              <Text style={styles.dateButtonText}>
+              <Text style={[styles.dateTimeLabel, { color: theme.textSubtle }]}>
+                Date
+              </Text>
+              <Text style={[styles.dateButtonText, { color: theme.text }]}>
                 {formatDueDateDisplay(dueDate)}
               </Text>
-              <Text style={styles.dateHint}>Tap to change</Text>
+              <Text style={[styles.dateHint, { color: theme.textSubtle }]}>
+                Tap to change
+              </Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
                 styles.dateButton,
+                { backgroundColor: theme.card, borderColor: theme.border },
                 styles.dateTimeHalf,
                 pressed && styles.dateButtonPressed,
               ]}
@@ -348,20 +386,64 @@ export default function AddTaskScreen() {
               accessibilityRole="button"
               accessibilityLabel="Choose due time"
             >
-              <Text style={styles.dateTimeLabel}>Time</Text>
-              <Text style={styles.dateButtonText}>
+              <Text style={[styles.dateTimeLabel, { color: theme.textSubtle }]}>
+                Time
+              </Text>
+              <Text style={[styles.dateButtonText, { color: theme.text }]}>
                 {formatTimeDisplay(dueTime)}
               </Text>
-              <Text style={styles.dateHint}>Tap to change</Text>
+              <Text style={[styles.dateHint, { color: theme.textSubtle }]}>
+                Tap to change
+              </Text>
             </Pressable>
+          </View>
+        </View>
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Recurring</Text>
+          <View style={styles.priorityRow}>
+            {RECURRENCE_OPTIONS.map((opt) => {
+              const selected = recurrence === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  style={[
+                    styles.recurrenceChip,
+                    {
+                      backgroundColor: selected ? theme.primary : theme.card,
+                      borderColor: selected ? theme.primary : theme.border,
+                    },
+                  ]}
+                  onPress={() => setRecurrence(opt.value)}
+                >
+                  <Text
+                    style={[
+                      styles.recurrenceChipText,
+                      { color: selected ? theme.onPrimary : theme.textMuted },
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: bottomPadding }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: bottomPadding,
+            backgroundColor: theme.bg,
+            borderTopColor: theme.border,
+          },
+        ]}
+      >
         <Pressable
           style={({ pressed }) => [
             styles.submitButton,
+            { backgroundColor: theme.primary },
             (pressed || submitting) && styles.submitButtonPressed,
             submitting && styles.submitButtonDisabled,
           ]}
@@ -370,7 +452,7 @@ export default function AddTaskScreen() {
           accessibilityRole="button"
           accessibilityLabel={isEdit ? 'Save changes' : 'Save task'}
         >
-          <Text style={styles.submitLabel}>
+          <Text style={[styles.submitLabel, { color: theme.onPrimary }]}>
             {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Save task'}
           </Text>
         </Pressable>
@@ -405,7 +487,6 @@ export default function AddTaskScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F4F4F5',
   },
   scroll: {
     flex: 1,
@@ -419,9 +500,7 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#52525B',
+    ...typography.caption,
     marginBottom: 8,
     letterSpacing: 0.2,
   },
@@ -432,8 +511,7 @@ const styles = StyleSheet.create({
     borderColor: '#E4E4E7',
     paddingHorizontal: 14,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#18181B',
+    ...typography.body,
   },
   inputMultiline: {
     minHeight: 100,
@@ -482,8 +560,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tagHint: {
-    fontSize: 15,
-    color: '#71717A',
+    ...typography.body,
     lineHeight: 22,
   },
   tagPillRow: {
@@ -528,12 +605,9 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: '#F4F4F5',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E4E4E7',
   },
   submitButton: {
-    backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -546,8 +620,15 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   submitLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.button,
+  },
+  recurrenceChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  recurrenceChipText: {
+    ...typography.caption,
   },
 });

@@ -1,9 +1,18 @@
-import React, { useCallback, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import {
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { resolveTagForTask } from '../storage/Tags';
 import { hexWithAlpha } from '../utils/colorUtils';
 import { formatDueDateTimeLine, isTaskOverdue } from '../utils/taskUtils';
+import { getTheme, typography } from '../utils/theme';
 
 const PRIORITY_THEME = {
   high: {
@@ -42,8 +51,69 @@ export default function TaskCard({
   onPress,
   tags = [],
 }) {
+  const isDarkMode = useColorScheme() === 'dark';
+  const theme = getTheme(isDarkMode);
   const swipeRef = useRef(null);
+  const entered = useRef(new Animated.Value(0)).current;
+  const exit = useRef(new Animated.Value(1)).current;
+  const checkScale = useRef(new Animated.Value(1)).current;
   const priority = PRIORITY_THEME[task.priority] ?? PRIORITY_THEME.medium;
+  useEffect(() => {
+    Animated.timing(entered, {
+      toValue: 1,
+      duration: 260,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+  }, [entered]);
+
+  useEffect(() => {
+    if (!completed) {
+      return;
+    }
+    checkScale.setValue(0.7);
+    Animated.sequence([
+      Animated.timing(checkScale, {
+        toValue: 1.18,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.spring(checkScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [checkScale, completed]);
+
+  const animateDelete = useCallback(() => {
+    Animated.timing(exit, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+      easing: Easing.in(Easing.quad),
+    }).start(({ finished }) => {
+      if (finished) {
+        onDelete?.(task.id);
+      }
+    });
+  }, [exit, onDelete, task.id]);
+
+  const animateComplete = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(checkScale, {
+        toValue: 1.2,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.spring(checkScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onToggleComplete?.(task.id));
+  }, [checkScale, onToggleComplete, task.id]);
+
   const overdue = isTaskOverdue(task);
   const completed = Boolean(task.completed);
 
@@ -60,14 +130,16 @@ export default function TaskCard({
             styles.swipeDelete,
             pressed && styles.swipeDeletePressed,
           ]}
-          onPress={() => {
-            swipeRef.current?.close();
-            onDelete?.(task.id);
-          }}
+            onPress={() => {
+              swipeRef.current?.close();
+              animateDelete();
+            }}
           accessibilityRole="button"
           accessibilityLabel={`Delete task: ${task.title}`}
         >
-          <Text style={styles.swipeDeleteText}>Delete</Text>
+          <Text style={[styles.swipeDeleteText, { color: theme.onPrimary }]}>
+            Delete
+          </Text>
         </Pressable>
       </View>
     ),
@@ -78,6 +150,11 @@ export default function TaskCard({
     <Pressable
       style={({ pressed }) => [
         styles.card,
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          shadowColor: '#000000',
+        },
         overdue && styles.cardOverdue,
         completed && styles.cardCompleted,
         pressed && styles.cardPressed,
@@ -88,7 +165,12 @@ export default function TaskCard({
     >
       <View style={styles.topRow}>
         <Text
-          style={[styles.title, completed && styles.titleCompleted]}
+          style={[
+            styles.title,
+            { color: theme.text },
+            completed && styles.titleCompleted,
+            completed && { color: theme.textSubtle },
+          ]}
           numberOfLines={2}
         >
           {task.title}
@@ -103,21 +185,35 @@ export default function TaskCard({
               },
             ]}
           >
-            <Text style={[styles.priorityText, { color: priority.color }]}>
+                  <Text style={[styles.priorityText, { color: priority.color }]}>
               {priority.label}
             </Text>
           </View>
           {completed ? (
-            <View style={styles.doneIcon} accessibilityLabel="Completed">
+            <Animated.View
+              style={[
+                styles.doneIcon,
+                {
+                  backgroundColor: theme.successBg,
+                  borderColor: theme.borderStrong,
+                  transform: [{ scale: checkScale }],
+                },
+              ]}
+              accessibilityLabel="Completed"
+            >
               <Text style={styles.doneIconText}>✓</Text>
-            </View>
+            </Animated.View>
           ) : (
             <Pressable
               style={({ pressed }) => [
                 styles.completeButton,
+                {
+                  backgroundColor: isDarkMode ? '#052e2b' : '#ECFDF5',
+                  borderColor: isDarkMode ? '#065f46' : '#6EE7B7',
+                },
                 pressed && styles.completeButtonPressed,
               ]}
-              onPress={() => onToggleComplete?.(task.id)}
+              onPress={animateComplete}
               accessibilityRole="button"
               accessibilityLabel={`Mark complete: ${task.title}`}
               hitSlop={6}
@@ -142,9 +238,13 @@ export default function TaskCard({
           </Text>
         </View>
         <View style={styles.dueBlock}>
-          <Text style={styles.dueLabel}>Due</Text>
+          <Text style={[styles.dueLabel, { color: theme.textSubtle }]}>Due</Text>
           <Text
-            style={[styles.dueDate, overdue && !completed && styles.dueDateOverdue]}
+            style={[
+              styles.dueDate,
+              { color: theme.textMuted },
+              overdue && !completed && styles.dueDateOverdue,
+            ]}
           >
             {dueLine}
           </Text>
@@ -154,7 +254,20 @@ export default function TaskCard({
   );
 
   return (
-    <Swipeable
+    <Animated.View
+      style={{
+        opacity: Animated.multiply(entered, exit),
+        transform: [
+          {
+            translateY: entered.interpolate({
+              inputRange: [0, 1],
+              outputRange: [16, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      <Swipeable
       ref={swipeRef}
       friction={2}
       enableTrackpadTwoFingerGesture
@@ -163,6 +276,7 @@ export default function TaskCard({
     >
       {cardInner}
     </Swipeable>
+    </Animated.View>
   );
 }
 
@@ -220,10 +334,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#18181B',
-    lineHeight: 22,
+    ...typography.bodyStrong,
     letterSpacing: -0.2,
   },
   titleCompleted: {
@@ -257,7 +368,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   completeButtonPressed: {
-    backgroundColor: '#D1FAE5',
+    opacity: 0.9,
   },
   completeButtonIcon: {
     fontSize: 18,
@@ -295,8 +406,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   categoryText: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...typography.caption,
   },
   dueBlock: {
     flexDirection: 'row',
@@ -313,9 +423,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   dueDate: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#3F3F46',
+    ...typography.caption,
     flexShrink: 1,
   },
   dueDateOverdue: {
