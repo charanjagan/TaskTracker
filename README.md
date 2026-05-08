@@ -31,7 +31,7 @@
 │  $ cat status.txt                                         │
 │                                                           │
 │  ► Core functionality: works (mostly)                     │
-│  ► UI polish: [ ██         ] dark mode included           │
+│  ► UI polish: [ ████       ]                              │
 │  ► Features: more than expected                           │
 │  ► Bug count: unknown. probably fine.                     │
 │                                                           │
@@ -67,6 +67,7 @@
 ✅ Animations
 ✅ Persistent storage
 ✅ Local notifications / reminders
+✅ Major UI Update
 🚧 Everything else → coming soon™
 ```
 
