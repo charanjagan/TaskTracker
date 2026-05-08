@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
@@ -105,8 +104,7 @@ function defaultDueTime() {
 }
 
 export default function AddTaskScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const navigation = useNavigation();
   const route = useRoute();
   const rawTaskId = route.params?.taskId;
@@ -220,7 +218,7 @@ export default function AddTaskScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
       <ScrollView
-        style={styles.scroll}
+        style={[styles.scroll, { backgroundColor: theme.bg }]}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -359,7 +357,7 @@ export default function AddTaskScreen() {
                 styles.dateButton,
                 { backgroundColor: theme.card, borderColor: theme.border },
                 styles.dateTimeHalf,
-                pressed && styles.dateButtonPressed,
+                pressed && { backgroundColor: theme.surface },
               ]}
               onPress={() => setDatePickerOpen(true)}
               accessibilityRole="button"
@@ -380,7 +378,7 @@ export default function AddTaskScreen() {
                 styles.dateButton,
                 { backgroundColor: theme.card, borderColor: theme.border },
                 styles.dateTimeHalf,
-                pressed && styles.dateButtonPressed,
+                pressed && { backgroundColor: theme.surface },
               ]}
               onPress={() => setTimePickerOpen(true)}
               accessibilityRole="button"
@@ -505,10 +503,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   input: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4E4E7',
     paddingHorizontal: 14,
     paddingVertical: 14,
     ...typography.body,
@@ -582,15 +578,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   dateButton: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4E4E7',
     paddingHorizontal: 14,
     paddingVertical: 14,
-  },
-  dateButtonPressed: {
-    backgroundColor: '#FAFAFA',
   },
   dateButtonText: {
     fontSize: 16,

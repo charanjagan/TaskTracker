@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -14,12 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TaskCard from '../components/TaskCard';
 import { loadTags } from '../storage/Tags';
 import { completeTask, deleteTask, loadTasks } from '../storage/Tasks';
-import { getTaskDueTimestamp } from '../utils/taskUtils';
+import { getTaskDueTimestamp, isTaskOverdue } from '../utils/taskUtils';
 import { getTheme, typography } from '../utils/theme';
 
 export default function HomeScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState([]);
@@ -27,39 +25,22 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <Pressable
-          onPress={() => navigation.navigate('StatisticsScreen')}
-          style={styles.headerTags}
-          accessibilityRole="button"
-          accessibilityLabel="Open statistics"
-        >
-          <Text style={[styles.headerTagsText, { color: theme.headerTint }]}>
-            Stats
-          </Text>
-        </Pressable>
-      ),
-      headerLeft: () => (
-        <Pressable
-          onPress={() => navigation.navigate('ManageTagsScreen')}
-          style={styles.headerTags}
-          accessibilityRole="button"
-          accessibilityLabel="Manage tags"
-        >
-          <Text style={[styles.headerTagsText, { color: theme.headerTint }]}>
-            Tags
-          </Text>
-        </Pressable>
-      ),
-    });
-  }, [navigation, theme.headerTint]);
-
   const bottomPadding = useMemo(
-    () => Math.max(insets.bottom, 16),
+    () => Math.max(insets.bottom, 18),
     [insets.bottom],
   );
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    return hour < 16 ? 'Good morning' : 'Good evening';
+  }, []);
+
+  const statCounts = useMemo(() => {
+    const pending = tasks.filter((t) => !t.completed).length;
+    const done = tasks.filter((t) => t.completed).length;
+    const overdue = tasks.filter((t) => !t.completed && isTaskOverdue(t)).length;
+    return { pending, done, overdue };
+  }, [tasks]);
 
   const filteredTasks = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -222,6 +203,28 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <View style={styles.headerWrap}>
+        <Text style={[styles.greetingTitle, { color: theme.text }]}>{greeting}</Text>
+        <View style={styles.statPillRow}>
+          <View style={[styles.statPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.statPillLabel, { color: theme.textSubtle }]}>Pending</Text>
+            <Text style={[styles.statPillValue, { color: theme.text }]}>{statCounts.pending}</Text>
+          </View>
+          <View style={[styles.statPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.statPillLabel, { color: theme.textSubtle }]}>Done</Text>
+            <Text style={[styles.statPillValue, { color: theme.text }]}>{statCounts.done}</Text>
+          </View>
+          <View
+            style={[
+              styles.statPill,
+              { backgroundColor: theme.overdueBg, borderColor: theme.overdueBorder },
+            ]}
+          >
+            <Text style={[styles.statPillLabel, { color: '#fda4af' }]}>Overdue</Text>
+            <Text style={[styles.statPillValue, { color: '#fecdd3' }]}>{statCounts.overdue}</Text>
+          </View>
+        </View>
+      </View>
       <View style={styles.searchWrap}>
         <TextInput
           style={[
@@ -287,8 +290,7 @@ export default function HomeScreen() {
           styles.footer,
           {
             paddingBottom: bottomPadding,
-            backgroundColor: theme.bg,
-            borderTopColor: theme.border,
+            backgroundColor: 'transparent',
           },
         ]}
       >
@@ -304,9 +306,7 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel="Add a new task"
         >
-          <Text style={[styles.addButtonLabel, { color: theme.onPrimary }]}>
-            Add task
-          </Text>
+          <Text style={[styles.addButtonLabel, { color: theme.onPrimary }]}>+</Text>
         </Pressable>
       </View>
     </View>
@@ -319,8 +319,35 @@ const styles = StyleSheet.create({
   },
   searchWrap: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 6,
     gap: 10,
+  },
+  headerWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    gap: 12,
+  },
+  greetingTitle: {
+    ...typography.h1,
+    letterSpacing: -0.3,
+  },
+  statPillRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statPill: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  statPillLabel: {
+    ...typography.caption,
+    marginBottom: 4,
+  },
+  statPillValue: {
+    ...typography.bodyStrong,
   },
   searchInput: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -396,28 +423,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    position: 'absolute',
+    right: 18,
+    bottom: 10,
   },
   addButton: {
-    borderRadius: 12,
-    paddingVertical: 14,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 7,
   },
   addButtonPressed: {
-    opacity: 0.9,
+    opacity: 0.92,
+    transform: [{ scale: 0.96 }],
   },
   addButtonLabel: {
-    ...typography.button,
-  },
-  headerTags: {
-    marginRight: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  headerTagsText: {
-    ...typography.bodyStrong,
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '500',
+    marginTop: -2,
   },
 });

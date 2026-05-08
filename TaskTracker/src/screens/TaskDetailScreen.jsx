@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -37,8 +36,7 @@ const PRIORITY_THEME = {
 };
 
 export default function TaskDetailScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const navigation = useNavigation();
   const route = useRoute();
   const taskId = route.params?.taskId;

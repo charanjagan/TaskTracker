@@ -174,6 +174,10 @@ export async function completeTask(id) {
     return null;
   }
   const current = tasks[idx];
+  // Idempotency guard: avoid creating recurring duplicates when complete is retriggered.
+  if (current.completed) {
+    return current;
+  }
   const completedTask = normalizeTask({
     ...current,
     completed: true,

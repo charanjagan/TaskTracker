@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,8 +21,7 @@ import { hexWithAlpha } from '../utils/colorUtils';
 import { getTheme, typography } from '../utils/theme';
 
 export default function ManageTagsScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const insets = useSafeAreaInsets();
   const [tags, setTags] = useState([]);
   const [newName, setNewName] = useState('');
@@ -304,12 +302,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4E4E7',
+    borderColor: '#2a2a2a',
   },
   tagPill: {
     alignSelf: 'flex-start',

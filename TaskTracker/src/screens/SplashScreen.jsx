@@ -1,18 +1,17 @@
 import React, { useEffect } from 'react';
-import { StatusBar, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { getTheme, typography } from '../utils/theme';
 
 const SPLASH_MS = 2000;
 
 export default function SplashScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const navigation = useNavigation();
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigation.replace('HomeScreen');
+      navigation.replace('MainTabs');
     }, SPLASH_MS);
     return () => clearTimeout(timer);
   }, [navigation]);
@@ -20,7 +19,7 @@ export default function SplashScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.primary }]}>
       <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        barStyle="light-content"
         backgroundColor={theme.primary}
       />
       <Text style={[styles.title, { color: theme.onPrimary }]}>TaskTracker</Text>
@@ -31,7 +30,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#e11d48',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadTasks } from '../storage/Tasks';
 import { getTheme, typography } from '../utils/theme';
@@ -14,8 +14,7 @@ function startOfWeek() {
 }
 
 export default function StatisticsScreen() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const [tasks, setTasks] = useState([]);
 
   useFocusEffect(

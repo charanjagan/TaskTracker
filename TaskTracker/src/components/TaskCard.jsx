@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -51,8 +50,7 @@ export default function TaskCard({
   onPress,
   tags = [],
 }) {
-  const isDarkMode = useColorScheme() === 'dark';
-  const theme = getTheme(isDarkMode);
+  const theme = getTheme();
   const swipeRef = useRef(null);
   const entered = useRef(new Animated.Value(0)).current;
   const exit = useRef(new Animated.Value(1)).current;
@@ -123,27 +121,54 @@ export default function TaskCard({
   const tagColor = tag?.color ?? '#A1A1AA';
 
   const renderRightActions = useCallback(
-    () => (
-      <View style={styles.swipeActions}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.swipeDelete,
-            pressed && styles.swipeDeletePressed,
-          ]}
-            onPress={() => {
-              swipeRef.current?.close();
-              animateDelete();
+    (_progress, dragX) => {
+      const actionTranslate = dragX.interpolate({
+        inputRange: [-92, -44, 0],
+        outputRange: [0, 10, 22],
+        extrapolate: 'clamp',
+      });
+      const actionScale = dragX.interpolate({
+        inputRange: [-92, -44, 0],
+        outputRange: [1, 0.92, 0.82],
+        extrapolate: 'clamp',
+      });
+      const actionOpacity = dragX.interpolate({
+        inputRange: [-92, -32, 0],
+        outputRange: [1, 0.7, 0.3],
+        extrapolate: 'clamp',
+      });
+
+      return (
+        <View style={styles.swipeActions}>
+          <Animated.View
+            style={{
+              transform: [{ translateX: actionTranslate }, { scale: actionScale }],
+              opacity: actionOpacity,
             }}
-          accessibilityRole="button"
-          accessibilityLabel={`Delete task: ${task.title}`}
-        >
-          <Text style={[styles.swipeDeleteText, { color: theme.onPrimary }]}>
-            Delete
-          </Text>
-        </Pressable>
-      </View>
-    ),
-    [onDelete, task.id, task.title],
+          >
+            <Pressable
+              style={({ pressed }) => [
+                styles.swipeDelete,
+                {
+                  backgroundColor: hexWithAlpha(theme.danger, 0.2),
+                  borderColor: hexWithAlpha(theme.danger, 0.42),
+                },
+                pressed && styles.swipeDeletePressed,
+              ]}
+              onPress={() => {
+                swipeRef.current?.close();
+                animateDelete();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete task: ${task.title}`}
+            >
+              <Text style={[styles.swipeDeleteText, { color: theme.danger }]}>X</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      );
+    },
+    [animateDelete, task.title, theme.danger],
   );
 
   const cardInner = (
@@ -208,8 +233,8 @@ export default function TaskCard({
               style={({ pressed }) => [
                 styles.completeButton,
                 {
-                  backgroundColor: isDarkMode ? '#052e2b' : '#ECFDF5',
-                  borderColor: isDarkMode ? '#065f46' : '#6EE7B7',
+                  backgroundColor: '#0f2a1f',
+                  borderColor: '#1f4b36',
                 },
                 pressed && styles.completeButtonPressed,
               ]}
@@ -283,24 +308,26 @@ export default function TaskCard({
 const styles = StyleSheet.create({
   swipeActions: {
     justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 12,
+    paddingRight: 10,
   },
   swipeDelete: {
-    backgroundColor: '#DC2626',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 88,
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 14,
-    marginLeft: -1,
+    borderWidth: 1,
   },
   swipeDeletePressed: {
-    opacity: 0.92,
+    transform: [{ scale: 0.94 }],
+    opacity: 0.95,
   },
   swipeDeleteText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
+    marginTop: -1,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -316,8 +343,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   cardOverdue: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#EF4444',
+    backgroundColor: '#1c1010',
+    borderColor: '#7f1d1d',
     borderWidth: 2,
   },
   cardCompleted: {
